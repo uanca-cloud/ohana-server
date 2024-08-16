@@ -1,0 +1,27 @@
+query channelBySeed (
+	$seed: String,
+    $initialChatsLimit: Int
+) {
+	channelBySeed (seed: $seed) {
+		id,
+		seed,
+		notificationLevel,
+		initialChats (limit: $initialChatsLimit) {
+			edges {
+				node {
+                    id
+                    order
+                    text
+                    createdAt
+                    status
+                    sentBy {
+                        identity
+                    }
+                    metadata
+                }
+                cursor
+			},
+			unreadCount
+		}
+	}
+}

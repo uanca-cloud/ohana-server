@@ -1,0 +1,52 @@
+# CSV only audit exports
+
+This document should track server specific changes required to implement csv only audit export feature in Voalte Family application.
+
+### Overview
+
+The reason behind adding this feature to the Voalte Family application is to allow Admins to download audit CSV's without having to also
+download all the media associated with the given timeframe.
+
+### Configurations
+
+No configuration changes
+
+### Implementation
+
+-   The `CreateAuditReportInput` type on the schema should be updated to contain the new flag `includeMedia` used for filtering media in or out. The new property should be versioned, and only available for clients with version greater or equal to 1.9.0:
+
+    ```
+      input CreateAuditReportInput {
+        # ISO-8601 compliant date
+        startDate: String!
+        
+        # ISO-8601 compliant date
+        endDate: String!
+        includeMedia: Boolean @version(version: "1.9.0")
+    }
+    ```
+
+-   To allow the `@version` directive work on an input field the @version directive will need to be updated to include `INPUT_FIELD_DEFINITION`:
+
+    ```
+        directive @version(version : String) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+    ```
+
+-   In `CreateAuditReportSchemaValidation.js`
+    - Add new field to validate of type boolean for `includeMedia`
+
+-   In `CreateAuditReportResolver.js`
+    - Accept new property `includeMedia` from args.input
+        - If `version` is less than 1.9.0 default this to true
+    - Pass `includeMedia` to `replaceAuditReport`
+    - Pass `includeMedia` to `createAuditEventReport`
+
+-   In `AuditEventsReportsDao.js`
+    - Accept `includeMedia` from `auditInfo`
+    - Update the report name to have `audit_log_media` instead of `audit_log` if `includeMedai` is true
+    - Pass `includeMedia` to `createAuditEventReport`
+
+-   In `AuditFunction.js`
+    - Accept the new property `includeMedia` from `myQueueItem`
+    - Update logic to skip uploading photoAttachments if `includeMedia` is true
+        - The specific logic for uploading/looping photos should be refactored to be more clear

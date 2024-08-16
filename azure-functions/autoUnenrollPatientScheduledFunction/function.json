@@ -1,0 +1,11 @@
+{
+  "scriptFile": "./AutoUnenrollPatientScheduledFunction.js",
+  "bindings": [
+    {
+      "schedule": "%UNENROLL_PATIENT_CRON_SCHEDULE%",
+      "name": "myTimer",
+      "type": "timerTrigger",
+      "direction": "in"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "scriptFile": "./AuditFunction.js",
+  "bindings": [
+    {
+      "name": "myQueueItem",
+      "type": "serviceBusTrigger",
+      "direction": "in",
+      "queueName": "%SERVICE_BUS_AUDIT_QUEUE_NAME%",
+      "connection": "ServiceBusConnection"
+    }
+  ],
+  "disabled": false
+}

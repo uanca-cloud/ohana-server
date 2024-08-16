@@ -1,0 +1,8 @@
+INSERT INTO users (user_id, tenant_id, role) VALUES (1, 1, 'ApprovedUser');
+INSERT INTO users (user_id, tenant_id, role) VALUES (2, 1, 'ApprovedUser');
+INSERT INTO users (user_id, tenant_id, role) VALUES (3, 1, 'Admin');
+
+INSERT INTO locations (label, tenant_id) VALUES ('ICU', 1);
+INSERT INTO locations (label, tenant_id) VALUES ('RMN', 1);
+
+INSERT INTO tenant_settings (tenant_id, key, value) values (1, 'externalIdType', 'MRN');

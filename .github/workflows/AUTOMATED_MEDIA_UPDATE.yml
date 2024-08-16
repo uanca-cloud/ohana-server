@@ -1,0 +1,83 @@
+name: Automated Media Update
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 3,17 * *'
+
+env:
+  PG_NAME: postgres-dev-ohana-hotfix
+
+jobs:
+  start-vm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 'Azure login'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+
+      - name: Validate "DISABLE_CSA_INTEGRATION"
+        run: |
+          json=$(az webapp config appsettings list --name app-service-dev-ohana-hotfix --resource-group dev_Ohana_Hotfix)
+          DISABLE_CSA_INTEGRATION=$(echo $json | jq -r 'map(select(.name == "DISABLE_CSA_INTEGRATION"))[0].value')
+          echo $json | jq -r 'map(select(.name == "DISABLE_CSA_INTEGRATION"))[0]'
+          if [ "$DISABLE_CSA_INTEGRATION" != "true" ]; then exit 1; fi;
+
+      - name: 'Start azure load tests vm'
+        run: az vm start --resource-group dev_Ohana_Hotfix --name vm-dev-ohana-hotfix
+
+  run-media-update:
+    needs: [ start-vm ]
+    runs-on: [ self-hosted, load-tests-ohana ]
+
+    steps:
+      - name: 'Install npm packages'
+        run: npm --prefix ../../../../Projects/ohana-tools i
+
+      - name: 'Azure login'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+
+      - name: "Get IP"
+        run: echo "IP=$(wget -qO- https://ipecho.net/plain)" >> $GITHUB_ENV;
+
+      - name: "Add DB firewall rule"
+        run: az postgres flexible-server firewall-rule create --resource-group dev_Ohana_Hotfix --name postgres-dev-ohana-hotfix --rule-name allowGHRunner --start-ip-address ${{ env.IP }} --end-ip-address ${{ env.IP }}
+
+      - name: "Get DB and Redis connection strings"
+        run: |
+          json=$(az webapp config appsettings list --name app-service-dev-ohana-hotfix --resource-group dev_Ohana_Hotfix)
+          echo "PG_CONNECTION_STRING=$(echo $json | jq -r 'map(select(.name == "PG_CONNECTION_STRING"))[0].value')" >> $GITHUB_ENV
+          echo "REDIS_CONNECTION_STRING=$(echo $json | jq -r 'map(select(.name == "REDIS_CONNECTION_STRING"))[0].value')" >> $GITHUB_ENV
+
+      - name: 'Delete existing fixtures from db and Redis'
+        run: node ../../../../Projects/ohana-tools/fixture-generator/delete-fixtures-from-db --dir="../../../../Projects/ohana-tools/load-test/fixtures" -c="${{ env.PG_CONNECTION_STRING }}" --cr="${{ env.REDIS_CONNECTION_STRING }}"
+
+      - name: 'Add fixtures to db'
+        run: node ../../../../Projects/ohana-tools/fixture-generator/add-fixtures-via-gql --dir="../../../../Projects/ohana-tools/load-test/fixtures" -c="${{ env.PG_CONNECTION_STRING }}" --vuCount=200
+
+      - name: "Delete DB firewall rule"
+        run: az postgres flexible-server firewall-rule delete --rule-name allowGHRunner --resource-group dev_Ohana_Hotfix --name postgres-dev-ohana-hotfix -y
+
+      - name: "Get UTC time"
+        run: echo "$(date +'%Y-%m-%dT%H:%M:%S')"
+
+      - name: 'Running media_update with K6'
+        run: k6 run -e vuCount=200 ../../../../Projects/ohana-tools/load-test/media_update.spec.js
+        timeout-minutes: 180
+
+  stop-vm:
+    needs: [ start-vm, run-media-update ]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: 'Azure login'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+      - name: 'Stop azure load tests vm'
+        run: az vm deallocate --resource-group dev_Ohana_Hotfix --name vm-dev-ohana-hotfix

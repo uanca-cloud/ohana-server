@@ -1,0 +1,104 @@
+name: Load Test Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      load_test:
+        description: 'Load test name for k6'
+        required: true
+      delete_fixtures:
+        description: 'Check if you would like to wipe fixtures from the DB. Otherwise ignore '
+        type: boolean
+        default: false
+        required: true
+      add_fixtures:
+        description: 'Check if you would like to add fixtures to the DB. Otherwise ignore '
+        type: boolean
+        default: false
+        required: true
+      vu_count:
+        description: 'Load test virtual user count'
+        required: true
+
+jobs:
+  start-vm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 'Azure login'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+
+      - name: 'Start azure load tests vm'
+        run: az vm start --resource-group dev_Ohana_Hotfix --name vm-dev-ohana-hotfix
+
+  install-npm-packages:
+    needs: [ start-vm ]
+    runs-on: [ self-hosted, load-tests-ohana ]
+
+    steps:
+      - name: 'Install npm packages'
+        run: npm --prefix ../../../../Projects/ohana-tools i
+
+  database-fixtures:
+    needs: [ start-vm, install-npm-packages ]
+    runs-on: [ self-hosted, load-tests-ohana ]
+
+    steps:
+      - name: 'Azure login'
+        if: github.event.inputs.delete_fixtures == 'true' || github.event.inputs.add_fixtures == 'true'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+
+      - name: 'Get IP'
+        if: github.event.inputs.delete_fixtures == 'true' || github.event.inputs.add_fixtures == 'true'
+        run: echo "IP=$(wget -qO- https://ipecho.net/plain)" >> $GITHUB_ENV;
+
+      - name: 'Add DB firewall rule'
+        if: github.event.inputs.delete_fixtures == 'true' || github.event.inputs.add_fixtures == 'true'
+        run: az postgres flexible-server firewall-rule create --resource-group dev_Ohana_Hotfix --name postgres-dev-ohana-hotfix --rule-name allowGHRunner --start-ip-address ${{ env.IP }} --end-ip-address ${{ env.IP }}
+
+      - name: 'Get DB and Redis connection strings'
+        if: github.event.inputs.delete_fixtures == 'true' || github.event.inputs.add_fixtures == 'true'
+        run: |
+          json=$(az webapp config appsettings list --name app-service-dev-ohana-hotfix --resource-group dev_Ohana_Hotfix)
+          echo "PG_CONNECTION_STRING=$(echo $json | jq -r 'map(select(.name == "PG_CONNECTION_STRING"))[0].value')" >> $GITHUB_ENV
+          echo "REDIS_CONNECTION_STRING=$(echo $json | jq -r 'map(select(.name == "REDIS_CONNECTION_STRING"))[0].value')" >> $GITHUB_ENV
+
+      - name: 'Delete existing fixtures from db and Redis'
+        if: github.event.inputs.delete_fixtures == 'true'
+        run: node ../../../../Projects/ohana-tools/fixture-generator/delete-fixtures-from-db --dir="../../../../Projects/ohana-tools/load-test/fixtures" -c="${{ env.PG_CONNECTION_STRING }}" --cr="${{ env.REDIS_CONNECTION_STRING }}"
+
+      - name: 'Add fixtures to db'
+        if: github.event.inputs.add_fixtures == 'true'
+        run: node ../../../../Projects/ohana-tools/fixture-generator/add-fixtures-via-gql --dir="../../../../Projects/ohana-tools/load-test/fixtures" -c="${{ env.PG_CONNECTION_STRING }}" --vuCount=${{github.event.inputs.vu_count}}
+
+      - name: 'Delete DB firewall rule'
+        if: github.event.inputs.delete_fixtures == 'true' || github.event.inputs.add_fixtures == 'true'
+        run: az postgres flexible-server firewall-rule delete --rule-name allowGHRunner --resource-group dev_Ohana_Hotfix --name postgres-dev-ohana-hotfix -y
+
+  run-load-tests:
+    needs: [ start-vm, install-npm-packages, database-fixtures ]
+    runs-on: [ self-hosted, load-tests-ohana ]
+
+    steps:
+      - name: 'Get UTC time'
+        run: echo "$(date +'%Y-%m-%dT%H:%M:%S')"
+
+      - name: 'Running ${{github.event.inputs.load_test}} with K6'
+        run: k6 run -e vuCount=${{github.event.inputs.vu_count}} ../../../../Projects/ohana-tools/load-test/${{github.event.inputs.load_test}}.spec.js
+
+  stop-vm:
+    needs: [ start-vm, run-load-tests ]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: 'Azure login'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+      - name: 'Stop azure load tests vm'
+        run: az vm deallocate --resource-group dev_Ohana_Hotfix --name vm-dev-ohana-hotfix

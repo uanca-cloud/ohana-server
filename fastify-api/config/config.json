@@ -1,0 +1,13 @@
+{
+  "BARCODE_FORMATS": [
+      "ean13Upca",
+      "upce",
+      "ean8",
+      "code39",
+      "code93",
+      "code128",
+      "codabar",
+      "interleavedTwoOfFive",
+      "upca"
+  ]
+}

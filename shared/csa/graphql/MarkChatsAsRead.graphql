@@ -1,0 +1,13 @@
+mutation markChatsAsRead($input: MarkChatsAsReadInput!) {
+    markChatsAsRead(input: $input) {
+        chats {
+            id
+            order
+            sentBy
+            createdAt
+            text
+            metadata
+            status
+        }
+    }
+}

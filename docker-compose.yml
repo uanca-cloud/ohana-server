@@ -1,0 +1,130 @@
+version: "3.8"
+
+services:
+  azf:
+    container_name: "ohana_azf"
+    build:
+      context: .
+      dockerfile: ./azure-functions/Dockerfile
+    ports:
+      # app server port
+      - "7072:7071"
+      # debug port
+      - "5858:5858"
+    environment:
+      - FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=true
+      - DOTNET_CLI_TELEMETRY_OPTOUT=true
+      - PG_CONNECTION_STRING=postgres://ohana_user:ohana@db:5432/ohana
+      - PG_ADMIN_INTEGRATION_RUNNER=postgres://ohana_admin:ohana@db:5432/ohana
+    volumes:
+      - ./azure-functions/package.json:/opt/ohana/azure-functions/package.json
+      - ./shared:/opt/ohana/shared
+      - .:/opt/ohana:delegated
+      - notused:/opt/ohana/node_modules
+    networks:
+      - ohana
+    depends_on:
+      - caching
+      - db
+    platform: linux/amd64
+
+  graphql:
+    container_name: "ohana_fastify"
+    build:
+      context: .
+      dockerfile: ./fastify-api/Dockerfile
+    command: ["./build/wait-for-it.sh", "messaging:5672", "--", "nodemon", "--inspect=0.0.0.0:9229", "./fastify-api/index.js"]
+    ports:
+      # app server port
+      - "7071:7071"
+      # debug port
+      - "9229:9229"
+    environment:
+      - FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=true
+      - DOTNET_CLI_TELEMETRY_OPTOUT=true
+      - PG_CONNECTION_STRING=postgres://ohana_user:ohana@db:5432/ohana
+      - PG_ADMIN_INTEGRATION_RUNNER=postgres://ohana_admin:ohana@db:5432/ohana
+    volumes:
+      - ./fastify-api/package.json:/opt/ohana/fastify-api/package.json
+      - ./shared:/opt/ohana/shared
+      - .:/opt/ohana:delegated
+      - graphql:/opt/ohana/node_modules
+    restart: always
+    networks:
+      - ohana
+    depends_on:
+      - caching
+      - db
+      - messaging
+
+  caching:
+    container_name: "ohana_caching"
+    image: redis:6
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./build/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - ohana
+
+  db:
+    container_name: "ohana_db"
+    image: postgres:12.6
+    environment:
+      POSTGRES_USER: "ohana_admin"
+      POSTGRES_PASSWORD: "ohana"
+      POSTGRES_DB: "ohana"
+      PG_DATA: /var/lib/postgresql/data
+    networks:
+      - ohana
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  messaging:
+    container_name: "ohana_messaging"
+    image: rabbitmq:3.10.7-management
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - ./build/rmq/etc:/etc/rabbitmq
+      - ./build:/opt/ohana/build
+      - rmq-data:/var/lib/rabbitmq
+    networks:
+      - ohana
+
+  azurite:
+    image: "mcr.microsoft.com/azure-storage/azurite"
+    container_name: "azurite"
+    hostname: azurite
+    restart: always
+    ports:
+      - 10000:10000
+      - 10001:10001
+      - 10002:10002
+    networks:
+      - ohana
+    volumes:
+      - azurite:/storagedata
+      - azurite:/data
+
+volumes:
+  notused:
+  postgres-data:
+  redis-data:
+  graphql:
+  rmq-data:
+  azurite:
+
+networks:
+  ohana:

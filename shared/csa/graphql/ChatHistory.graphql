@@ -1,0 +1,27 @@
+query channelBySeed($seed: String, $chatsAfter: String, $chatsFirst: Int) {
+    channelBySeed(seed: $seed) {
+        chats(after: $chatsAfter, first: $chatsFirst) {
+            unreadCount
+            edges {
+                node {
+                    id
+                    order
+                    text
+                    createdAt
+                    status
+                    sentBy {
+                        identity
+                    }
+                    metadata
+                }
+                cursor
+            }
+            pageInfo {
+                hasNextPage
+                startCursor
+                endCursor
+                totalCount
+            }
+        }
+    }
+}

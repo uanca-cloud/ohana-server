@@ -1,0 +1,21 @@
+{
+  "scriptFile": "./SmsFunction.js",
+  "bindings": [
+    {
+      "name": "myQueueItem",
+      "type": "serviceBusTrigger",
+      "direction": "in",
+      "queueName": "%SERVICE_BUS_SMS_QUEUE_NAME%",
+      "connection": "ServiceBusConnection"
+    },
+    {
+      "type": "twilioSms",
+      "name": "message",
+      "accountSidSetting": "TWILIO_ACCOUNT_SID",
+      "authTokenSetting": "TWILIO_AUTH_TOKEN",
+      "from": "%TWILIO_PHONE_NUMBER%",
+      "direction": "out"
+    }
+  ],
+  "disabled": false
+}

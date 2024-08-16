@@ -1,0 +1,210 @@
+name: CD - Test
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy ({major}.{minor}.{patch}-build.{buildnumber}, eg: 1.0.0-build.93)"
+        required: true
+      sqlversion:
+        description: "Check if you would like to run the DOWN and UP DB migrations. Otherwise ignore"
+        type: boolean
+        default: false
+        required: true
+      wipedatabase:
+        description: "Check if you would like to WIPE the DB. Otherwise ignore"
+        type: boolean
+        default: false
+        required: true
+      custombuild:
+        description: "Check if you want to use a custom EULA/PRIVACY/VERSIONED build (Warning: this must be previously created)"
+        type: boolean
+        default: false
+        required: true
+      clearrediscache:
+        description: 'Clear the Redis Cache'
+        type: boolean
+        default: false
+        required: true
+
+env:
+  ENVIRONMENT: TEST
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Download PG SSL Certificate"
+        run: |
+          wget https://dl.cacerts.digicert.com/DigiCertGlobalRootCA.crt.pem --no-check-certificate
+
+      - name: "Download Release"
+        run: |
+          assets=$(curl --silent -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases/tags/${{ github.event.inputs.version }})
+          assets_url=$(jq -r '.assets | .[].url' <<< $assets)
+          for i in $assets_url; do
+            echo $i
+            curl --silent -LJO -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H 'Accept: application/octet-stream' $i
+          done
+          mkdir -p output/dist
+          unzip -qq ./ohana-server-${{ github.event.inputs.version }} -d output/dist
+          unzip -qq ./iac.zip -d output/infra
+
+      - name: Install Azure CLI
+        shell: bash
+        run: |
+          sudo apt-get install ca-certificates curl apt-transport-https lsb-release gnupg
+          curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
+          AZ_REPO=$(lsb_release -cs)
+          AZ_VERSION=2.57.0-1
+          echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
+          sudo apt-get update
+          sudo apt-get install -y --allow-downgrades azure-cli="${AZ_VERSION}~${AZ_REPO}"
+
+      - name: "Azure login"
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+
+      - name: "Install Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+          terraform_version: 1.5.7
+
+      - name: Terraform Prepare
+        run: |
+          chmod +x ./prepareterraform.sh
+          ./prepareterraform.sh --environment $ENVIRONMENT
+        working-directory: ./output/infra
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -out=vlttfplan
+        working-directory: ./output/infra
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve vlttfplan
+        working-directory: ./output/infra
+
+      - name: "Get Terraform Output"
+        id: tfoutputs
+        run: |
+          echo "notification_hub_sas_name=$(terraform output notification_hub_sas_name | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "notification_hub_sas_key=$(terraform output notification_hub_sas_key | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "notification_hub_uri=$(terraform output notification_hub_uri | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "notification_hub_registration_ttl=$(terraform output notification_hub_registration_ttl | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "acr_login_server=$(terraform output acr_login_server | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "resource_group=$(terraform output resource_group | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "pg_name=$(terraform output pg_name | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "pg_username=$(terraform output pg_username | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "pg_password=$(terraform output pg_password | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "appservice_name=$(terraform output appservice_name | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "functionapp_name=$(terraform output functionapp_name | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "endpoint_url=$(terraform output endpoint_url | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "disable_csa_integration=$(terraform output disable_csa_integration | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "redis_hostname=$(terraform output redis_hostname | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "redis_key=$(terraform output redis_key | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "fcm_private_key=$(terraform output fcm_private_key | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "fcm_client_email=$(terraform output fcm_client_email | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "fcm_project_id=$(terraform output fcm_project_id | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "notification_hub_namespace_name=$(terraform output notification_hub_namespace_name | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "notification_hub_name=$(terraform output notification_hub_name | tr -d '"')" >> $GITHUB_OUTPUT
+          echo "subscription_id=$(terraform output subscription_id | tr -d '"')" >> $GITHUB_OUTPUT
+        working-directory: ./output/infra
+
+      - name: "Update Notification Hub Registration TTL"
+        working-directory: ./output/infra
+        env:
+          SHARED_ACCESS_KEY_NAME: ${{ steps.tfoutputs.outputs.notification_hub_sas_name }}
+          SHARED_ACCESS_KEY: ${{ steps.tfoutputs.outputs.notification_hub_sas_key }}
+          EVENTHUB_URI: ${{ steps.tfoutputs.outputs.notification_hub_uri }}
+          REGISTRATION_TTL: ${{ steps.tfoutputs.outputs.notification_hub_registration_ttl }}
+        run: chmod 775 ./update-notification-hub-regitration-ttl.sh && ./update-notification-hub-regitration-ttl.sh
+
+      - name: "Add FCM credentials in Notification Hub"
+        working-directory: ./output/infra
+        env:
+          FCM_CLIENT_EMAIL: ${{ steps.tfoutputs.outputs.fcm_client_email }}
+          FCM_PRIVATE_KEY: ${{ steps.tfoutputs.outputs.fcm_private_key }}
+          FCM_PROJECT_ID: ${{ steps.tfoutputs.outputs.fcm_project_id }}
+          RESOURCE_GROUP_NAME: ${{ steps.tfoutputs.outputs.resource_group }}
+          NOTIFICATION_HUB_NAMESPACE_NAME: ${{ steps.tfoutputs.outputs.notification_hub_namespace_name }}
+          NOTIFICATION_HUB_NAME: ${{ steps.tfoutputs.outputs.notification_hub_name }}
+          SUBSCRIPTION_ID: ${{ steps.tfoutputs.outputs.subscription_id }}
+        run: chmod 775 ./update-notification-hub-fcm-key.sh && ./update-notification-hub-fcm-key.sh
+
+      - name: "Get IP"
+        run: echo "IP=$(wget -qO- https://ipecho.net/plain)" >> $GITHUB_ENV;
+
+      - name: "Add DB firewall rule"
+        if: github.event.inputs.sqlversion == 'true' || github.event.input.wipedatabase == 'true'
+        run: az postgres flexible-server firewall-rule create --resource-group ${{ steps.tfoutputs.outputs.resource_group}} --name ${{ steps.tfoutputs.outputs.pg_name}} --rule-name allowGHRunner --start-ip-address ${{ env.IP }} --end-ip-address ${{ env.IP }}
+
+      - name: "Execute the WIPE DB migration"
+        if: github.event.inputs.wipedatabase == 'true'
+        run: WIPE_PATH=$(find . -name *WIPE*.sql -print0) && psql -v ON_ERROR_STOP=1 --set=sslmode=require --set=sslrootcert=./DigiCertGlobalRootCA.crt.pem -d postgresql://${{ steps.tfoutputs.outputs.pg_username}}@${{ steps.tfoutputs.outputs.pg_name}}.postgres.database.azure.com:5432/ohana -f $WIPE_PATH && echo $?
+        working-directory: ./
+        env:
+          PGPASSWORD: ${{ steps.tfoutputs.outputs.pg_password}}
+
+      - name: "Execute the BOOTSTRAP DB migration"
+        if: github.event.inputs.wipedatabase == 'true'
+        run: BOOTSTRAP_PATH=$(find . -name *BOOTSTRAP*.sql -print0) && psql -v ON_ERROR_STOP=1 --set=sslmode=require --set=sslrootcert=./DigiCertGlobalRootCA.crt.pem -d postgresql://${{ steps.tfoutputs.outputs.pg_username}}@${{ steps.tfoutputs.outputs.pg_name}}.postgres.database.azure.com:5432/ohana -f $BOOTSTRAP_PATH && echo $?
+        working-directory: ./
+        env:
+          PGPASSWORD: ${{ steps.tfoutputs.outputs.pg_password}}
+
+      - name: "Execute DB DOWN migrations"
+        if: github.event.inputs.sqlversion == 'true'
+        run: DOWN_PATH=$(find . -name *DOWN*.sql -print0) && psql -v ON_ERROR_STOP=1 --set=sslmode=require --set=sslrootcert=./DigiCertGlobalRootCA.crt.pem -d postgresql://${{ steps.tfoutputs.outputs.pg_username}}@${{ steps.tfoutputs.outputs.pg_name}}.postgres.database.azure.com:5432/ohana -f $DOWN_PATH && echo $?
+        working-directory: ./
+        env:
+          PGPASSWORD: ${{ steps.tfoutputs.outputs.pg_password}}
+
+      - name: "Flush Redis Cache"
+        if: github.event.inputs.clearrediscache == 'true'
+        run: |
+          sudo apt install -y ncat
+          primary_key="${{ steps.tfoutputs.outputs.redis_key }}"
+          key_length=$(echo -n $primary_key | wc -m)
+          { echo -e "*2\r\n\$4\r\nAUTH\r\n\$$key_length\r\n$primary_key\r\n*1\r\n\$8\r\nFLUSHALL\r\n"; sleep 1; } | ncat --ssl ${{ steps.tfoutputs.outputs.redis_hostname }} 6380
+
+      - name: "Execute DB UP migrations"
+        if: github.event.inputs.sqlversion == 'true'
+        run: UP_PATH=$(find . -name *UP*.sql -print0) && psql -v ON_ERROR_STOP=1 --set=sslmode=require --set=sslrootcert=./DigiCertGlobalRootCA.crt.pem -d postgresql://${{ steps.tfoutputs.outputs.pg_username}}@${{ steps.tfoutputs.outputs.pg_name}}.postgres.database.azure.com:5432/ohana -f $UP_PATH && echo $?
+        working-directory: ./
+        env:
+          PGPASSWORD: ${{ steps.tfoutputs.outputs.pg_password}}
+
+      - name: "Deploy App to AppService"
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.tfoutputs.outputs.appservice_name }}
+          images: "${{ steps.tfoutputs.outputs.acr_login_server }}/ohana-app-service-api:${{ github.event.inputs.version }}${{ github.event.inputs.custombuild == 'true' && '-custom' || '' }}"
+
+      - name: Deploy Azure Functions App
+        uses: Azure/functions-action@v1.5.2
+        with:
+          app-name: ${{ steps.tfoutputs.outputs.functionapp_name }}
+          package: ohana-server-${{ github.event.inputs.version }}.zip
+            
+      - name: "Delete DB firewall rule"
+        if: github.event.inputs.sqlversion == 'true' || github.event.input.wipedatabase == 'true'
+        run: az postgres flexible-server firewall-rule delete --rule-name allowGHRunner --resource-group ${{ steps.tfoutputs.outputs.resource_group}} --name ${{ steps.tfoutputs.outputs.pg_name}} -y
+
+      - name: "Run smoke test suite"
+        timeout-minutes: 10
+        env:
+          BASE_URL: ${{ steps.tfoutputs.outputs.endpoint_url}}
+          VERSION: ${{ github.event.inputs.version }}
+          DISABLE_CSA_INTEGRATION: ${{ steps.tfoutputs.outputs.disable_csa_integration}}
+        working-directory: ./output/dist/smoke-tests
+        run: |
+          npm ci
+          until [ $(curl -LI "$BASE_URL/health" -o /dev/null -w '%{http_code}\n' -s) == "200" ] && [ "${WEB_VERSION-0}" == "${{ env.VERSION }}" ]
+          do
+            WEB_VERSION=$(curl "$BASE_URL/health" | jq .report.version.value | tr -d '"')
+            sleep 5
+          done
+          npm run test:smoke

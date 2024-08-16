@@ -1,0 +1,65 @@
+name: Tag a Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'version to tag ({major}.{minor}.{patch}-build.{buildnumber}, eg: 1.0.0-build.93)'
+        required: true
+      type:
+        description: 'type of tag you wouldd like to make.  Choose one: rc, cr, ga.  Defaults to rc'
+        required: true
+        default: 'rc'
+      increment:
+        description: 'the to increment of the type being paired.  Default to 1'
+        required: true
+        default: '1'
+
+jobs:
+  tag-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout source'
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 'Create Git Tag'
+        run: |
+          TAG_REF=$(git show-ref -s ${{ github.event.inputs.version }})
+          echo "Found tag ${{ github.event.inputs.version }} @ $TAG_REF"
+          SEMVER=$(echo "${{ github.event.inputs.version }}" | awk -F'-' '{print $1}')
+          NEW_TAG="$SEMVER-${{ github.event.inputs.type }}.${{ github.event.inputs.increment }}"
+          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+          echo "Creating tag $NEW_TAG"
+          git tag "$NEW_TAG" "$TAG_REF"
+          git push origin "$NEW_TAG"
+          echo "Tag created."
+
+      - name: 'Update release notes'
+        run: |
+          RESPONSE=$(curl --silent -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases/tags/${{ github.event.inputs.version }})
+          RELEASE_ID=$(jq -r '.id' <<< $RESPONSE)
+          echo "Release ID: $RELEASE_ID"
+          RELEASE_BODY=$(jq '.body' <<< $RESPONSE | cut -c2- | rev | cut -c2- | rev)
+          RESOURCE_URL=$(jq -r '.url' <<< $RESPONSE)
+
+          HEADER="TAG:"
+          if [[ ${{ github.event.inputs.type }} = "rc" ]]; then HEADER="RELEASE CANDIDATE:"; fi
+          if [[ ${{ github.event.inputs.type }} = "cr" ]]; then HEADER="CONTROLLED RELEASE:"; fi
+          if [[ ${{ github.event.inputs.type }} = "ga" ]]; then HEADER="GENERAL AUDIENCE:"; fi
+
+          NEW_RELEASE_BODY="# $HEADER ${{ env.NEW_TAG }}\n$RELEASE_BODY"
+          echo {\"body\":\"$NEW_RELEASE_BODY\"} >> ./CURL_BODY
+          echo "$RESOURCE_URL"
+          cat ./CURL_BODY
+
+          curl \
+          -v \
+          -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Content-Type: application/json" \
+          -X 'PATCH' \
+          --data-binary "@./CURL_BODY" \
+          --fail \
+          --show-error \
+          $RESOURCE_URL

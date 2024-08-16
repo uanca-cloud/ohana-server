@@ -1,0 +1,7 @@
+mutation createChannel($input: CreateChannelInput!) {
+	createChannel(input: $input) {
+		channel {
+			id
+		}
+	}
+}

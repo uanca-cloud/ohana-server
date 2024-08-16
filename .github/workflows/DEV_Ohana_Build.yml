@@ -1,0 +1,148 @@
+name: CI Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - ".github/**"
+
+env:
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: "."
+  NODE_VERSION: "18.x"
+  PG_BASIC_USERNAME: "ohana_user"
+  PG_REPORTING_USERNAME: "ohana_user_reporting"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout source"
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache NPM assets
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: "Install NPM packages"
+        shell: bash
+        run: |
+          pushd '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          npm ci
+
+      - name: "Run linting"
+        run: |
+          npm run lint:report
+
+      - name: "Run audit"
+        run: |
+          npm run analyze
+
+      - name: "Run unit tests"
+        run: |
+          npm run test:unit
+
+      - name: "Run integration tests"
+        run: |
+          npm run test:int:migrate
+
+      - name: "Build artifacts"
+        run: |
+          npm run ci:build 1.9.1 2.0.0 ${{ github.run_number }}
+
+      # Running the Sonar Scanner
+      - name: Setup Sonar Scanner
+        uses: warchant/setup-sonar-scanner@v7
+      - name: Run Sonar Scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: sonar-scanner -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+
+      - name: "Find version"
+        run: |
+          json_output=`jq .version package.json | tr -d '"'`
+          echo "version=$json_output" >> $GITHUB_ENV
+
+      - name: "Get Tag name, commit hash, and logs"
+        run: |
+          temp=$(curl -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json"   https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases/latest)
+          echo "temp: $temp"
+          tag=$(jq -r .tag_name <<< $temp)
+          echo " tag: $tag"
+          HASH=$(git rev-list -1  $tag)
+          echo "hash: $HASH"
+          DB_MIGRATIONS_CHANGED=$(git log $HASH..HEAD --oneline build/db/migrations/)
+          echo "Database Schema Changed: $([ -z "$DB_MIGRATIONS_CHANGED" ] && echo 'NO' || echo 'YES')" > logs.txt
+          echo "" >> logs.txt
+          GQL_SCHEMA_CHANGED=$(git log $HASH..HEAD --oneline shared/schema.js)
+          echo "GQL Schema Changed: $([ -z "$GQL_SCHEMA_CHANGED" ] && echo 'NO' || echo 'YES')" >> logs.txt
+          echo "" >> logs.txt
+          git log $HASH..HEAD --oneline >> logs.txt
+          cat logs.txt
+
+      - name: "Processing Build Artifacts"
+        shell: bash
+        run: |
+          cd iac && zip -r ../iac.zip . && cd ..
+
+      - name: "Create release"
+        uses: ncipollo/release-action@v1
+        with:
+          name: ohana-server-${{ env.version }}
+          tag: ${{ env.version }}
+          artifacts: "./output/ohana-server-${{ env.version }}.zip, ./output/*.sql, ./output/infrastructure-ohana-server-${{ env.version }}.zip, ./output/*.sql.zip, iac.zip"
+          bodyfile: logs.txt
+          draft: false
+          commit: ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Azure login"
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+
+      - name: "Push docker release"
+        run: |
+          docker build -f ./fastify-api/Dockerfile.ci . -t vltprodusacr.azurecr.io/ohana-app-service-api:${{ env.version }}  --platform linux/amd64
+          az acr login --name vltprodusacr.azurecr.io --subscription 9d434cac-9373-47cc-b022-55009fe50099
+          docker push vltprodusacr.azurecr.io/ohana-app-service-api:${{ env.version }}
+
+      - name: "Record licensing"
+        shell: bash
+        env:
+          FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+        run: |
+          mkdir fossa-bin
+          export BINDIR="$(pwd)/fossa-bin"
+          curl -s https://raw.githubusercontent.com/fossas/spectrometer/master/install.sh | bash -s
+          fossa-bin/fossa init
+          fossa-bin/fossa analyze --team=Ohana
+
+      - name: Export global variables
+        run: |
+          echo "SHA=`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_ENV
+          echo "RUN_LINK=`echo https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}`" >> $GITHUB_ENV
+          echo "COMMIT_URL=` echo https://github.com/${{github.repository}}/commit/${GITHUB_SHA}`" >> $GITHUB_ENV
+
+      - name: 'Generate SBOM'
+        shell: bash
+        run: |
+          npm run gen:sbom || true
+
+      - name: Upload SBOM to GitHub
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: output/reports/sbom.json

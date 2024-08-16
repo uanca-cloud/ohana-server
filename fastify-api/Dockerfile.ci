@@ -1,0 +1,20 @@
+FROM node:18.18.0-bookworm-slim
+
+# Application and debug ports
+EXPOSE 7071
+EXPOSE 9229
+
+# Create application folder
+RUN mkdir -p /opt/ohana && chown node:node /opt/ohana
+WORKDIR /opt/ohana
+
+# Activate node user
+USER node
+
+# Copy over manifests, install dependencies, and setup local .bin on path
+COPY --chown=node:node . /opt/ohana
+RUN npm ci --omit=dev --workspaces --ignore-scripts && npm cache clean --force --loglevel=error
+ENV PATH /opt/ohana/node_modules/.bin:$PATH
+
+# Execute server
+CMD [ "node", "./fastify-api/index.js" ]

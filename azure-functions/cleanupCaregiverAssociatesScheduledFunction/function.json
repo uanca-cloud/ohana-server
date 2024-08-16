@@ -1,0 +1,11 @@
+{
+  "scriptFile": "./CleanupCaregiverAssociatesScheduledFunction.js",
+  "bindings": [
+    {
+      "schedule": "%CLEANUP_CAREGIVER_ASSOCIATIONS_CRON_SCHEDULE%",
+      "name": "myTimer",
+      "type": "timerTrigger",
+      "direction": "in"
+    }
+  ]
+}

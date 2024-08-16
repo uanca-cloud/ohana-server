@@ -1,0 +1,32 @@
+{
+  "version": "2.0",
+  "logging": {
+    "fileLoggingMode": "always",
+    "logLevel": {
+      "Function.audit.User": "Information",
+      "Function.autoUnenrollPatientScheduledFunction.User": "Information",
+      "Function.cleanupAttachmentsScheduledFunction.User": "Information",
+      "Function.cleanupAuditAttachmentsScheduledFunction.User": "Information",
+      "Function.cleanupAuditEventsScheduledFunction.User": "Information",
+      "Function.cleanupCaregiverAssociatesScheduledFunction.User": "Information",
+      "Function.clientLogs.User": "Information",
+      "Function.sms.User": "Information",
+      "Function": "Error",
+      "Host.Aggregator": "Error",
+      "Host.Results": "Error"
+    }
+  },
+  "extensions": {
+    "http": {
+      "routePrefix": ""
+    }
+  },
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[3.3.0, 4.0.0)"
+  },
+  "watchDirectories": [
+    "azure-functions",
+    "shared"
+  ]
+}

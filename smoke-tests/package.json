@@ -1,0 +1,29 @@
+{
+  "description": "Smoke tests dependency list for running inside the github cd container",
+  "main": "external-urls.smk.spec.js",
+  "license": "private",
+  "scripts": {
+    "test:smoke": "jest --config ./jest.smk.config.js"
+  },
+  "dependencies": {
+    "adm-zip": "0.5.9",
+    "del": "6.0.0",
+    "dotenv": "10.0.0",
+    "jest": "27.0.6",
+    "merge-stream": "2.0.0",
+    "semver": "7.5.2",
+    "shelljs": "0.8.5",
+    "webpack": "5.76.0"
+  },
+  "devDependencies": {
+    "jest-sonar-reporter": "https://github.com/blegrosvoalte/jest-sonar-reporter"
+  },
+  "overrides": {
+    "webpack": "5.76.0",
+    "json5": "2.2.2",
+    "semver": "7.5.2",
+    "tough-cookie": "4.1.3",
+    "jsonwebtoken": "9.0.0",
+    "@babel/traverse": "7.23.2"
+  }
+}

@@ -1,0 +1,80 @@
+name: VFamily - Functional SERVER Test Suite
+on:
+  workflow_run:
+    workflows: [CD - AUT]
+    types: [completed]
+
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch"
+        required: false
+        default: "dev"
+        type: string
+      collect-oe:
+        description: "Collect OE"
+        required: false
+        default: "true"
+        type: string
+      log-level:
+        description: "Log Level"
+        required: false
+        default: "debug"
+        type: string
+      test-filter:
+        description: "Test Filter"
+        required: true
+        default: "FullyQualifiedName~Ohana.Test.Server"
+        type: string
+
+jobs:
+  set-vars:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    outputs:
+      branch: ${{ steps.set-vars.outputs.branch }}
+      collect-oe: ${{ steps.set-vars.outputs.collect-oe }}
+      environments: ${{ steps.set-vars.outputs.environments }}
+      log-level: ${{ steps.set-vars.outputs.log-level }}
+      test-filter: ${{ steps.set-vars.outputs.test-filter }}
+
+    steps:
+      - name: Sleep
+        run: sleep 2m
+        if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'schedule' }}
+
+      - name: Print Inputs
+        run: |
+          echo "Branch: ${{ github.event.inputs.branch }}"
+          echo "Collect OE: ${{ github.event.inputs.collect-oe }}"
+          echo "Log Level: ${{ github.event.inputs.log-level }}"
+          echo "Mobile Platform: ${{ github.event.inputs.mobile-platform }}"
+          echo "Test Filter: ${{ github.event.inputs.test-filter }}"
+
+      - name: Set Variables
+        id: set-vars
+        env:
+          DEFAULT_BRANCH: "dev"
+          DEFAULT_COLLECT_OE: "true"
+          DEFAULT_ENVIRONMENTS: "ohana-aut"
+          DEFAULT_LOG_LEVEL: "debug"
+          DEFAULT_TEST_FILTER: "FullyQualifiedName~Ohana.Test.Server"
+        run: |
+          echo "branch=${{ github.event.inputs.branch || env.DEFAULT_BRANCH }}" >> $GITHUB_OUTPUT
+          echo "collect-oe=${{ github.event.inputs.collect-oe || env.DEFAULT_COLLECT_OE }}" >> $GITHUB_OUTPUT
+          echo "environments=${{ env.DEFAULT_ENVIRONMENTS }}" >> $GITHUB_OUTPUT
+          echo "log-level=${{ github.event.inputs.log-level || env.DEFAULT_LOG_LEVEL }}" >> $GITHUB_OUTPUT
+          echo "test-filter=${{ github.event.inputs.test-filter || env.DEFAULT_TEST_FILTER }}" >> $GITHUB_OUTPUT
+
+  call-workflow:
+    needs: set-vars
+    uses: Hillrom-Enterprise/automation-ng/.github/workflows/test.yml@dev
+    with:
+      branch: ${{ needs.set-vars.outputs.branch }}
+      collect-oe: ${{ needs.set-vars.outputs.collect-oe }}
+      environments: ${{ needs.set-vars.outputs.environments }}
+      log-level: ${{ needs.set-vars.outputs.log-level }}
+      test-filter: ${{ needs.set-vars.outputs.test-filter }}
+      suite-name: ${{ github.workflow }}
+    secrets: inherit

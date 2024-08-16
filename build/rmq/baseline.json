@@ -1,0 +1,71 @@
+{
+  "rabbit_version": "3.10.7",
+  "rabbitmq_version": "3.10.7",
+  "product_name": "RabbitMQ",
+  "product_version": "3.10.7",
+  "users": [
+    {
+      "name": "admin",
+      "password_hash": "3pLIQRQdw4j/Jc3dxocyUCjorMbO04IdQwuR2UzZnkn1BGKZ",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": [
+        "administrator"
+      ],
+      "limits": {}
+    },
+    {
+      "name": "ohana-infra",
+      "password_hash": "eitmxz6MyQOltRd20S95R0QumqxNYZ9M1Jx35wttjiaYPqWb",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": [],
+      "limits": {}
+    },
+    {
+      "name": "ohana-consumer",
+      "password_hash": "eitmxz6MyQOltRd20S95R0QumqxNYZ9M1Jx35wttjiaYPqWb",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": [],
+      "limits": {}
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "admin",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "ohana-infra",
+      "vhost": "/",
+      "configure": "^(.*csa-watchChat|.*csa-watchChannel|from-csa-.*)$",
+      "write": "^(.*csa-watchChat|from-csa-.*)$",
+      "read": "^(csa-watchChat|from-csa-.*)$"
+    },
+    {
+      "user": "ohana-consumer",
+      "vhost": "/",
+      "configure": "^$",
+      "write": "^$",
+      "read": "^(.*csa-watchChat)$"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [
+    {
+      "name": "internal_cluster_id",
+      "value": "rabbitmq-cluster-id-n7r53sfLUBZ6ON2GF3zpKw"
+    }
+  ],
+  "policies": [],
+  "queues": [],
+  "exchanges": [],
+  "bindings": []
+}

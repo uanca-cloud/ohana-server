@@ -1,0 +1,60 @@
+name: AUT - Remove Registered Devices from Notification HUB
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'version to deploy ({major}.{minor}.{patch}-build.{buildnumber}, eg: 1.0.0-build.93)'
+        required: true
+
+env:
+  AZURE_FUNCTION_URL: 'https://aut-eus.vf.hrdev.io'
+  RESOURCE_GROUP_NAME: dev_Ohana_aut
+  AZURE_OHANA_KEYVAULT: ${{ secrets.AZURE_OHANA_KEYVAULT }}
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+  AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+  PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE_AUT }}
+  AZURE_KEYVAULT_AUTH_VIA_CLI: true
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  AZURE_DHP_KEYVAULT: ${{ secrets.AZURE_DHP_KEYVAULT }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Download PG SSL Certificate'
+        run: |
+          wget https://dl.cacerts.digicert.com/DigiCertGlobalRootCA.crt.pem --no-check-certificate
+
+      - name: 'Download Release'
+        run: |
+          assets=$(curl --silent -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases/tags/${{ github.event.inputs.version }})
+          assets_url=$(jq -r '.assets | .[].url' <<< $assets)
+          for i in $assets_url; do
+            echo $i
+            curl --silent -LJO -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H 'Accept: application/octet-stream' $i
+            done
+          mkdir -p output/infra
+          unzip -qq ./infrastructure-ohana-server-${{ github.event.inputs.version }} -d output/infra
+
+      - name: 'Azure login'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: 'Remove Devices Registered in Notification Hub'
+        working-directory: ./output/infra
+        env:
+          RESOURCE_GROUP_NAME: ${{env.RESOURCE_GROUP_NAME}}
+          AZURE_OHANA_KEYVAULT: ${{secrets.AZURE_OHANA_KEYVAULT_NAME_WITHOUT_URL}}
+          AZURE_DHP_KEYVAULT: ${{secrets.AZURE_DHP_KEYVAULT_NAME_WITHOUT_URL}}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          IAC_RESOURCE_GROUP_NAME: ${{ secrets.IAC_RESOURCE_GROUP_NAME }}
+          IAC_STORAGE_ACCOUNT_NAME: ${{ secrets.IAC_STORAGE_ACCOUNT_NAME }}
+        run: chmod 775 ./remove-device-registrations.sh && ./remove-device-registrations.sh

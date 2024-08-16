@@ -1,0 +1,27 @@
+query channels($limit: Int) {
+    channels(limit: $limit) {
+        edges {
+            node {
+                seed
+                initialChats {
+                    edges {
+                        node {
+                            id
+                            order
+                            text
+                            createdAt
+                            status
+                            sentBy {
+                                identity
+                            }
+                            metadata
+                        }
+                        cursor
+                    }
+                    unreadCount
+                }
+                notificationLevel
+            }
+        }
+    }
+}

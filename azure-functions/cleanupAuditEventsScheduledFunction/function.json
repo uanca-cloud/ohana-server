@@ -1,0 +1,11 @@
+{
+  "scriptFile": "./CleanupAuditEventsScheduledFunction.js",
+  "bindings": [
+    {
+      "schedule": "%CLEANUP_AUDIT_EVENTS_CRON_SCHEDULE%",
+      "name": "myTimer",
+      "type": "timerTrigger",
+      "direction": "in"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+mutation sendChat($input: SendChatInput!) {
+	sendChat(input: $input) {
+		message {
+			id
+			order
+			sentBy {
+				id
+				identity
+				metadata
+			}
+			createdAt
+			text
+			status
+			metadata
+		}
+	}
+}

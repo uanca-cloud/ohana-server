@@ -1,0 +1,56 @@
+# Server PR Pipeline
+name: PR CI Checks
+on:
+  pull_request:
+    branches:
+      - develop
+      - release-*
+    paths-ignore:
+      - ".github/**"
+      - "iac/**"
+
+env:
+  NODE_VERSION: "18.x"
+
+jobs:
+  PR-pre-steps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Source"
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node ${{ env.NODE_VERSION }} Environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: "Resolve Project Dependencies Using Npm"
+        shell: bash
+        run: |
+          npm ci
+
+      - name: "Run linting"
+        run: |
+          npm run lint:report
+
+      - name: "Run audit"
+        run: |
+          npm run analyze
+
+      - name: "Run unit tests"
+        run: |
+          npm run test:unit
+
+      - name: "Run integration tests"
+        run: |
+          npm run test:int:migrate
+
+      # Running the Sonar Scanner
+      - name: Setup Sonar Scanner
+        uses: warchant/setup-sonar-scanner@v7
+      - name: Run Sonar Scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: sonar-scanner -Dsonar.token=${{ secrets.SONAR_TOKEN }}

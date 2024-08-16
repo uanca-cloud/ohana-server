@@ -1,0 +1,37 @@
+{
+  "name": "ohana-azure-functions",
+  "description": "Azure-functions component for the Ohana project which uses a serverless model with Azure Functions",
+  "version": "2.0.0",
+  "license": "private",
+  "scripts": {
+    "tty-azf": "PID=$(docker ps | grep ohana_azf | awk -F ' ' '{print $1;}') && docker exec -ti $PID /bin/sh",
+    "tty-db": "PID=$(docker ps | grep ohana_db | awk -F ' ' '{print $1;}') && docker exec -ti $PID /bin/sh",
+    "tty-psql": "PID=$(docker ps | grep ohana_db | awk -F ' ' '{print $1;}') && docker exec -ti $PID psql ohana -U ohana_admin"
+  },
+  "dependencies": {
+    "@azure/abort-controller": "1.1.0",
+    "@azure/service-bus": "7.9.1",
+    "adm-zip": "0.5.9",
+    "lodash.groupby": "4.6.0",
+    "lodash.template": "4.5.0",
+    "ohana-shared": "*",
+    "pako": "2.0.4",
+    "twilio": "3.83.1",
+    "uuid": "9.0.0"
+  },
+  "devDependencies": {
+    "@babel/eslint-parser": "7.19.1",
+    "del": "6.1.1",
+    "dotenv": "16.0.3",
+    "eslint": "8.26.0",
+    "jest": "29.2.2",
+    "jest-junit": "14.0.1",
+    "merge-stream": "2.0.0",
+    "prettier": "2.7.1",
+    "semver": "7.5.2",
+    "shelljs": "0.8.5",
+    "wait-port": "1.0.4",
+    "webpack": "5.76.0",
+    "webpack-node-externals": "3.0.0"
+  }
+}

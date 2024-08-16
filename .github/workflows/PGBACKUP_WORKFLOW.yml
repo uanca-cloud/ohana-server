@@ -1,0 +1,41 @@
+name: PostgreSQL Backup Workflow
+on: 
+  # schedule:
+  #   - cron: '0 */4 * * *'
+    # This runs at minute zero past every fourth hour.
+  workflow_dispatch:
+
+env:
+  PG_NAME: postgres-dev-ohana-dev
+  PG_USERNAME: pgadmin
+  PG_DBNAME: ohana
+  PG_DUMP_NAME: dump_$(date +'%d-%m-%Y_%H:%M').sql.gz
+  AZURE_STORAGE_ACCOUNT: saohanabackuptest
+  AZURE_STORAGE_CONTAINER: backup
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Azure Login'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # - name: 'Run backup script'
+      #   env:
+      #     PGPASSWORD: ${{ secrets.PGDB_DEV_PASSWORD }}
+      #   run: |
+      #     mkdir backup
+      #     cd backup
+      #     temp=dump_$(date +'%d-%m-%Y_%H:%M').sql.gz
+      #     echo "Starting backup"
+      #     pg_dump -h ${{ env.PG_NAME }}.postgres.database.azure.com -p 5432 -U ${{ env.PG_USERNAME }} -d ${{ env.PG_DBNAME }} | gzip > ${{ env.PG_DUMP_NAME }}
+      #     echo "Finished backup"
+      #     echo "Starting upload to storage account"
+      #     pwd
+      #     az storage blob upload-batch --account-name saohanabackuptest --destination 'backup' --source ${{ env.PG_DUMP_NAME }}
+      #     echo "Finished Uploading $temp on storage account"
+
+      - name: 'hello'
+        run: echo Hello world

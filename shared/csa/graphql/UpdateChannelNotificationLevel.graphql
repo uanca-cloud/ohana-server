@@ -1,0 +1,3 @@
+mutation updateChannelNotificationLevel($input: UpdateChannelNotificationLevelInput!) {
+	updateChannelNotificationLevel(input: $input)
+}

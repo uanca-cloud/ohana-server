@@ -1,0 +1,5 @@
+mutation addMembersToChannel($input: AddMembersToChannelInput!) {
+    addMembersToChannel(input: $input) {
+        membersAdded
+    }
+}

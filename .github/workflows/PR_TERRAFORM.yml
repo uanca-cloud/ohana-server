@@ -1,0 +1,112 @@
+name: PR - TERRAFORM
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+      - release-*
+    paths:
+      - "iac/**"
+
+jobs:
+  terraform:
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [DEV, TEST, HFX, AUT, STAGE, DEMO, SBX, PROD]
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Source"
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install Azure CLI
+        shell: bash
+        run: |
+          sudo apt-get install ca-certificates curl apt-transport-https lsb-release gnupg
+          curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
+          AZ_REPO=$(lsb_release -cs)
+          AZ_VERSION=2.57.0-1
+          echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
+          sudo apt-get update
+          sudo apt-get install -y --allow-downgrades azure-cli="${AZ_VERSION}~${AZ_REPO}"
+
+      - name: "Azure login"
+        uses: azure/login@v2
+        with:
+          creds: ${{ ( contains(matrix.environment,'SBX') || contains(matrix.environment,'PROD') ) == 'true' && secrets.AZURE_CREDENTIALS_PROD || secrets.AZURE_CREDENTIALS_DEV }}
+
+      - name: "Get IP"
+        run: echo "IP=$(wget -qO- https://ipecho.net/plain)" >> $GITHUB_ENV;
+
+      - name: "Install Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+          terraform_version: 1.5.7
+
+      - name: Terraform Prepare
+        run: |
+          chmod +x ./prepareterraform.sh
+          ./prepareterraform.sh --environment  ${{ matrix.environment }}
+        working-directory: iac
+
+      # DB firewall rules for this pipeline are not required at this moment
+      # - name: "Get Terraform Output"
+      #   id: tfoutputs
+      #   run: |
+      #     echo "resource_group=$(terraform output resource_group | tr -d '"')" >> $GITHUB_OUTPUT
+      #     echo "pg_name=$(terraform output pg_name | tr -d '"')" >> $GITHUB_OUTPUT
+      #   working-directory: iac
+      #
+      # - name: "Add DB firewall rule"
+      #   run: az postgres flexible-server firewall-rule create --resource-group ${{ steps.tfoutputs.outputs.resource_group}} --name ${{ steps.tfoutputs.outputs.pg_name}} --rule-name allowGHRunner --start-ip-address ${{ env.IP }} --end-ip-address ${{ env.IP }}
+
+      # - name: "Add DB firewall rule"
+      #   run: |
+      #     case  ${{ matrix.environment }} in
+      #     DEV)
+      #       RG="dev_Ohana_Dev"
+      #       PG="postgres-dev-ohana-dev"
+      #       ;;
+      #     TEST)
+      #       RG="dev_Ohana_Test"
+      #       PG="postgres-dev-ohana-test"
+      #       ;;
+      #     HFX)
+      #       RG="dev_Ohana_Hotfix"
+      #       PG="postgres-dev-ohana-hotfix"
+      #       ;;
+      #     AUT)
+      #       RG="dev_Ohana_aut"
+      #       PG="postgres-dev-ohana-aut"
+      #       ;;
+      #     STAGE)
+      #       RG="dev_Ohana_Stage"
+      #       PG="postgres-dev-ohana-stage"
+      #       ;;
+      #     DEMO)
+      #       RG="dev_Ohana_Demo"
+      #       PG="postgres-dev-ohana-demo"
+      #       ;;
+      #     SBX)
+      #       RG="dev_Ohana_Sandbox"
+      #       PG="postgres-prod-ohana-sandbox"
+      #       ;;
+      #     PROD)
+      #       RG="dev_Ohana_Prod"
+      #       PG="postgres-prod-ohana-prod"
+      #       ;;
+      #     esac
+            
+      #     az postgres flexible-server firewall-rule create --resource-group $RG --name $PG --rule-name allowGHRunner --start-ip-address ${{ env.IP }} --end-ip-address ${{ env.IP }}
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -out=vlttfplan
+        working-directory: iac
+
+      # - name: "Delete DB firewall rule"
+      #   run: az postgres flexible-server firewall-rule delete --rule-name allowGHRunner --resource-group $RG --name $PG -y

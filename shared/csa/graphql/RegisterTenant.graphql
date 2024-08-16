@@ -1,0 +1,3 @@
+mutation registerTenant($input: RegisterTenantInput!) {
+	registerTenant(input: $input)
+}

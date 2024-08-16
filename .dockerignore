@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+.git
+.gitignore
+.gitkeep
+README.md
+docker-compose.yaml
+/.github
+/.vscode
+/.husky
+/infra
+/iac
+/docs
+/build

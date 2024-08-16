@@ -1,0 +1,41 @@
+Effective Date: July 1, 2022
+
+This Privacy Notice will provide you with information on the data privacy practices of Voalte, Inc., a wholly owned subsidiary of Baxter International Inc., and its global affiliates (collectively, “Voalte,” “we,” or “us”), related to the personal information we receive about you through your use of the Voalte Family Application (“Voalte Family App”). This Privacy Notice applies to your use of the Voalte Family App, which is an application that permits a healthcare provider (“Medical Professional”) to share information about a patient’s (“Patient") treatment and health status with the Patient’s identified family member, friend, or caregiver (“Primary Family Member”). The Primary Family Member can subsequently add other family members who are involved in the Patient’s care (“Other Family Members”) to the Voalte Family App so that the Other Family Members also can have access to information that the healthcare provider shares about the Patient through the Voalte Family App.  The Primary Family Member and Other Family Members are collectively referred to in this Agreement as “Family Members” or “you”.
+
+This Privacy Notice applies to your use of the Voalte Family App, whether you are the Primary Family Member or Other Family Member, and provides you with information on how we will use and disclose your personal data that we collect about you as a user of the Voalte Family App and how you can exercise rights regarding your personal data.
+
+
+What personal data we collect
+
+We collect your first name, last name, phone number, your relationship to the Patient, and your preferred language to register you for the Voalte Family App to permit the Patient’s healthcare provider to communicate information and updates about the Patient with you, the Primary Family Member and/or Other Family Member.  As part of the registration process, you will also need to enter the Patient’s date of birth as part of the process to confirm that you are authorized to obtain access to the Patient’s information.
+
+Why we collect your personal data and how we use it
+
+We will collect your personal data and use it for the purposes of permitting you to use the Voalte Family App.
+
+Who may receive your personal data?
+
+We will share your personal data with our personnel, including customer service representatives and IT staff, as necessary to operate the Voalte Family App.
+
+Sharing your personal data with our service providers
+
+Voalte uses service providers, such as IT vendors, to help us provide the Voalte Family App and these service providers may have access to your personal data to provide us with services.   These entities are authorized to use your personal data only as necessary to provide these services to us.
+
+How long we keep your personal data
+
+Your personal data will be retained for no longer than 365 days as determined by the health care provider’s facility.
+
+Do not track
+
+Certain laws require Voalte to indicate whether we honor “Do Not Track” settings in your browser concerning targeted advertising. As of the effective date of this Privacy Notice, an industry standard has not yet been established on how to respond to these signals, and therefore Voalte does not currently respond to such signals. Instead, we adhere to the standards set out in this Privacy Notice. If you have any questions, please contact us using the information provided below.
+
+Your rights
+
+Depending on your relationship with us, certain rights may apply with respect to your personal data.  Please contact us using the information below to exercise your rights.
+
+Contact Us
+
+If you have questions or concerns about this Privacy Policy, our information practices, or any other aspect of the privacy and security of your personal data, please contact us using the information below.
+Email:  					privacy@baxter.com
+Mail:  						Baxter International Inc.
+ATTN: Global Privacy Office 1 Baxter Parkway, Deerfield, IL USA 60015

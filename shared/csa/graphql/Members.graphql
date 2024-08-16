@@ -1,0 +1,26 @@
+query channelBySeed (
+	$seed: String,
+	$limit: Int,
+	$offset: Int
+) {
+	channelBySeed(seed: $seed) {
+        members(limit: $limit, offset: $offset) {
+            edges {
+                node {
+                    id,
+                    identity,
+                    active,
+                    metadata
+                },
+                cursor
+            },
+            pageInfo {
+                hasNextPage,
+                startCursor,
+                endCursor,
+                totalCount,
+                offset
+            }
+        }
+    }
+}

@@ -1,0 +1,3 @@
+mutation deleteChannel($input: DeleteChannelInput!){
+    deleteChannel(input: $input)
+}

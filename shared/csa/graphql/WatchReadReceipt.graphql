@@ -1,0 +1,15 @@
+mutation WatchReadReceipt {
+  watchReadReceipt {
+    ... on NewSubscription {
+      subscriptionId
+    }
+    ... on ReadReceiptEvent {
+      tenantId
+      orderNumber
+      seed
+      recipients {
+        identity
+      }
+    }
+  }
+}

@@ -1,0 +1,75 @@
+name: BACKUP_POSTGRES_DB
+
+on:
+  #workflow_run:
+  #  workflows:
+  #    - "CI Pipeline"
+  #  branches:
+  #    - develop
+  #  types:
+  #   - completed
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy ({major}.{minor}.{patch}-build.{buildnumber}, eg: 1.0.0-build.93)"
+        required: true
+      wipedatabase:
+        description: "Check if you would like to WIPE the DB. Otherwise ignore"
+        type: boolean
+        default: false
+        required: true
+      clearrediscache:
+        description: 'Clear the Redis Cache'
+        type: boolean
+        default: false
+        required: true
+
+env:
+  ENVIRONMENT: DEV
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Set full version env variable"
+        run: |
+          if [ ! -z "${{ github.event.inputs.version }}" ]; then \
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV; \
+          else \
+          RESPONSE=$(curl --silent -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/tags?per_page=100); \
+          echo "VERSION=$(jq -r '.[].name' <<< $RESPONSE | grep 'build.${{ github.event.workflow_run.run_number }}')" >> $GITHUB_ENV; \
+          fi
+
+          echo "Version to use: $VERSION"
+
+      - name: "Download PG SSL Certificate"
+        run: |
+          wget https://dl.cacerts.digicert.com/DigiCertGlobalRootCA.crt.pem --no-check-certificate
+
+      - name: "Download Release"
+        run: |
+          assets=$(curl --silent -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases/tags/${{ env.VERSION }})
+          assets_url=$(jq -r '.assets | .[].url' <<< $assets)
+          for i in $assets_url; do
+            echo $i
+            curl --silent -LJO -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' -H 'Accept: application/octet-stream' $i
+          done
+          mkdir -p output/dist
+          unzip -qq ./ohana-server-${{ env.VERSION }} -d output/dist
+          unzip -qq ./iac.zip -d output/infra
+
+      - name: Install Azure CLI
+        shell: bash
+        run: |
+          sudo apt-get install ca-certificates curl apt-transport-https lsb-release gnupg
+          curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
+          AZ_REPO=$(lsb_release -cs)
+          AZ_VERSION=2.57.0-1
+          echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
+          sudo apt-get update
+          sudo apt-get install -y --allow-downgrades azure-cli="${AZ_VERSION}~${AZ_REPO}"
+
+      - name: "Azure login"
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}

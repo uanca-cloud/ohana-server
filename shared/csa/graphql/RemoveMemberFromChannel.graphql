@@ -1,0 +1,5 @@
+mutation removeMemberFromChannel($input: RemoveMembersFromChannelInput!) {
+    removeMembersFromChannel(input: $input) {
+        membersRemoved
+    }
+}
