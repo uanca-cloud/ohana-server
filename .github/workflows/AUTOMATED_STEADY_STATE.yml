@@ -2,8 +2,6 @@ name: Automated Steady State
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 6,20 * *'
 
 env:
   PG_NAME: postgres-dev-ohana-hotfix
