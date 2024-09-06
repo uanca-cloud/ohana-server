@@ -18,8 +18,6 @@ The development workflow for this project relies on the following dependencies:
 -   Docker Desktop - https://www.docker.com/get-started
 -   Python 3 and pip - https://opensource.com/article/19/5/python-3-default-mac
 -   docker-compose - https://docs.docker.com/compose/install/
--   NodeJS 18 and npm 9 via NVM
-    -   https://hill-rom.atlassian.net/wiki/spaces/ENG/pages/1569997344/Web+Team+NodeJS+Installation
 
 Reach out to a team member for the following files:
 
